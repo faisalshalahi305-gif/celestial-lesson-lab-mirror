@@ -135,10 +135,10 @@ function Toolbar({ root, commit, hist, goTo, pickImage, done }: {
     return node;
   };
   const insert = (k: string) => {
-    const node = insertNode(TPL[k].html, k === "section");
+    const node = insertNode(TPL[k]!.html, k === "section");
     if (node.tagName === "IMG") pickImage(node as HTMLImageElement);
     if (k !== "section") select(node);
-    commit(`إضافة ${TPL[k].name}`);
+    commit(`إضافة ${TPL[k]!.name}`);
   };
   const need = (what: "block" | "section") => {
     const el = last.current[what];
@@ -220,7 +220,7 @@ function Toolbar({ root, commit, hist, goTo, pickImage, done }: {
           <button onClick={done} className="whitespace-nowrap rounded-lg bg-success px-3 py-2 text-sm font-bold text-success-foreground">✓ حفظ</button>
         </div>
         <div className="flex max-h-[45vh] gap-2 overflow-x-auto px-2 py-2">
-          {tab === "add" && Object.keys(TPL).map((k) => <B key={k} t={TPL[k].name} on={() => insert(k)} />)}
+          {tab === "add" && Object.keys(TPL).map((k) => <B key={k} t={TPL[k]!.name} on={() => insert(k)} />)}
           {tab === "text" && <>
             <B t="عريض" on={() => cmd("bold", "تنسيق عريض")} />
             <B t="تسطير" on={() => cmd("underline", "تسطير")} />
