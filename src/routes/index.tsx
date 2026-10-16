@@ -53,127 +53,230 @@ function Eq({ children }: { children: ReactNode }) {
 }
 
 const KEY = "lesson-html-v1";
+const HKEY = "lesson-history-v1";
+type HistEntry = { label: string; time: number; html: string };
+type Hist = { list: HistEntry[]; i: number };
 
-const TPL = {
-  section: `<section class="mx-auto my-8 max-w-5xl rounded-3xl border border-border bg-card/60 px-6 py-12 md:px-10"><h2 class="mb-6 flex items-center gap-3 text-3xl font-extrabold text-primary"><span class="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-xl text-primary-foreground">★</span>عنوان القسم الجديد</h2><div class="space-y-5 leading-loose"><p>اكتب هنا…</p></div></section>`,
-  p: `<p>فقرة جديدة… اكتب هنا.</p>`,
-  box: `<div class="rounded-xl border-2 border-primary bg-accent p-6 text-accent-foreground"><p class="mb-2 text-2xl font-extrabold">عنوان مميز</p><p>معلومة مهمة هنا.</p></div>`,
-  qa: `<details class="qa group rounded-xl border border-border bg-card/80 p-5 shadow-sm"><summary class="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4"><p class="flex-1 font-bold">اكتب السؤال هنا؟</p><span class="shrink-0 rounded-lg bg-primary px-5 py-2 font-bold text-primary-foreground"><span class="group-open:hidden">الإجابة</span><span class="hidden group-open:inline">إخفاء</span></span></summary><div class="mt-4 rounded-lg bg-success p-4 text-success-foreground">اكتب الإجابة هنا.</div></details>`,
-  eq: `<div dir="ltr" class="my-4 rounded-xl border-2 border-primary bg-accent py-6 text-center font-mono text-3xl font-bold text-accent-foreground">F = m · a</div>`,
-  list: `<ul class="list-disc space-y-2 pr-6"><li>نقطة أولى</li><li>نقطة ثانية</li></ul>`,
-  img: `<img src="${orbits}" alt="صورة" class="w-full rounded-2xl shadow-lg" />`,
+const SEC = (body: string, title = "عنوان القسم الجديد") => `<section class="mx-auto my-8 max-w-5xl rounded-3xl border border-border bg-card/60 px-6 py-12 md:px-10"><h2 class="mb-6 flex items-center gap-3 text-3xl font-extrabold text-primary"><span class="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-xl text-primary-foreground">★</span>${title}</h2><div class="space-y-5 leading-loose">${body}</div></section>`;
+
+const TPL: Record<string, { name: string; html: string }> = {
+  p: { name: "فقرة", html: `<p>فقرة جديدة… اكتب هنا.</p>` },
+  h3: { name: "عنوان فرعي", html: `<h3 class="text-2xl font-bold text-primary">عنوان فرعي</h3>` },
+  box: { name: "مربع مميز", html: `<div class="rounded-xl border-2 border-primary bg-accent p-6 text-accent-foreground"><p class="mb-2 text-2xl font-extrabold">عنوان مميز</p><p>معلومة مهمة هنا.</p></div>` },
+  alert: { name: "تنبيه", html: `<div class="rounded-xl border-r-8 border-destructive bg-card p-5"><p class="font-extrabold text-destructive">⚠️ تنبيه</p><p>اكتب التنبيه هنا.</p></div>` },
+  cards: { name: "بطاقات معلومات", html: `<div class="grid gap-4 md:grid-cols-3"><div class="rounded-xl border border-border bg-card p-5"><p class="text-3xl">🪐</p><p class="font-bold text-primary">بطاقة ١</p><p>معلومة قصيرة.</p></div><div class="rounded-xl border border-border bg-card p-5"><p class="text-3xl">☀️</p><p class="font-bold text-primary">بطاقة ٢</p><p>معلومة قصيرة.</p></div><div class="rounded-xl border border-border bg-card p-5"><p class="text-3xl">🌍</p><p class="font-bold text-primary">بطاقة ٣</p><p>معلومة قصيرة.</p></div></div>` },
+  compare: { name: "مقارنة", html: `<div class="grid gap-4 md:grid-cols-2"><div class="rounded-xl border-2 border-primary bg-card p-5"><p class="mb-2 text-xl font-extrabold text-primary">الجانب الأول</p><ul class="list-disc space-y-1 pr-6"><li>نقطة</li><li>نقطة</li></ul></div><div class="rounded-xl border-2 border-border bg-card p-5"><p class="mb-2 text-xl font-extrabold">الجانب الثاني</p><ul class="list-disc space-y-1 pr-6"><li>نقطة</li><li>نقطة</li></ul></div></div>` },
+  table: { name: "جدول", html: `<div class="overflow-x-auto"><table class="w-full border-collapse text-center"><thead><tr><th class="border border-border bg-primary p-3 text-primary-foreground">عمود ١</th><th class="border border-border bg-primary p-3 text-primary-foreground">عمود ٢</th><th class="border border-border bg-primary p-3 text-primary-foreground">عمود ٣</th></tr></thead><tbody><tr><td class="border border-border p-3">—</td><td class="border border-border p-3">—</td><td class="border border-border p-3">—</td></tr><tr><td class="border border-border p-3">—</td><td class="border border-border p-3">—</td><td class="border border-border p-3">—</td></tr></tbody></table></div>` },
+  qa: { name: "سؤال وجواب", html: `<details class="qa group rounded-xl border border-border bg-card/80 p-5 shadow-sm"><summary class="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4"><p class="flex-1 font-bold">اكتب السؤال هنا؟</p><span class="shrink-0 rounded-lg bg-primary px-5 py-2 font-bold text-primary-foreground"><span class="group-open:hidden">الإجابة</span><span class="hidden group-open:inline">إخفاء</span></span></summary><div class="mt-4 rounded-lg bg-success p-4 text-success-foreground">اكتب الإجابة هنا.</div></details>` },
+  eq: { name: "معادلة", html: `<div dir="ltr" class="my-4 rounded-xl border-2 border-primary bg-accent py-6 text-center font-mono text-3xl font-bold text-accent-foreground">F = m · a</div>` },
+  list: { name: "قائمة", html: `<ul class="list-disc space-y-2 pr-6"><li>نقطة أولى</li><li>نقطة ثانية</li></ul>` },
+  img: { name: "صورة", html: `<img src="${orbits}" alt="صورة" class="w-full rounded-2xl shadow-lg" />` },
+  media: { name: "صورة مع شرح", html: `<figure class="grid items-center gap-4 md:grid-cols-2"><img src="${orbits}" alt="صورة" class="w-full rounded-2xl shadow-lg" /><figcaption><p class="text-xl font-bold text-primary">عنوان الصورة</p><p>اكتب شرح الصورة هنا.</p></figcaption></figure>` },
+  section: { name: "قسم جديد", html: SEC(`<p>اكتب هنا…</p>`) },
 };
-function Toolbar({ root, save, pickImage, done }: { root: React.RefObject<HTMLDivElement | null>; save: () => void; pickImage: (i: HTMLImageElement) => void; done: () => void }) {
-  const last = useRef<{ block: HTMLElement | null; section: HTMLElement | null }>({ block: null, section: null });
-  const [tab, setTab] = useState<"text" | "add" | "order" | "tools">("text");
+const BLANK = `<section class="blank mx-auto my-8 max-w-5xl px-6 py-6 md:px-10"><div class="space-y-5 leading-loose min-h-[40vh]"><p>ابدأ من هنا… اكتب أو أضف من تبويب «إضافة».</p></div></section>`;
+
+type Sel = { block: HTMLElement | null; section: HTMLElement | null; cell: HTMLTableCellElement | null };
+
+function Toolbar({ root, commit, hist, goTo, pickImage, done }: {
+  root: React.RefObject<HTMLDivElement | null>; commit: (label: string) => void; hist: Hist; goTo: (i: number) => void;
+  pickImage: (i: HTMLImageElement) => void; done: () => void;
+}) {
+  const last = useRef<Sel>({ block: null, section: null, cell: null });
+  const clip = useRef<string | null>(null);
+  const [tab, setTab] = useState<"text" | "add" | "order" | "table" | "history" | "tools">("add");
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [inTable, setInTable] = useState(false);
   const hideKeyboard = () => { (document.activeElement as HTMLElement | null)?.blur(); getSelection()?.removeAllRanges(); };
+
+  const place = () => {
+    const b = last.current.block;
+    if (!b || !b.isConnected) return setPos(null);
+    const r = b.getBoundingClientRect();
+    setPos({ top: Math.max(110, r.top - 46), left: Math.max(8, Math.min(r.left, innerWidth - 230)) });
+  };
+  const select = (nb: HTMLElement | null) => {
+    if (nb !== last.current.block) { last.current.block?.classList.remove("is-sel"); nb?.classList.add("is-sel"); last.current.block = nb; }
+    place();
+  };
   useEffect(() => {
     const on = () => {
       const n = getSelection()?.anchorNode;
       const el = (n?.nodeType === 1 ? n : n?.parentElement) as HTMLElement | null;
       if (!el || !root.current?.contains(el)) return;
       last.current.section = el.closest("section, header");
+      last.current.cell = el.closest("td, th");
+      setInTable(!!last.current.cell);
       let b: HTMLElement | null = el;
       while (b && b.parentElement && !b.parentElement.classList.contains("space-y-5") && b.tagName !== "SECTION") b = b.parentElement;
-      const nb = b && b.tagName !== "SECTION" && b.tagName !== "HEADER" ? b : null;
-      if (nb !== last.current.block) {
-        last.current.block?.classList.remove("is-sel");
-        nb?.classList.add("is-sel");
-        last.current.block = nb;
-      }
+      select(b && b.tagName !== "SECTION" && b.tagName !== "HEADER" ? b : null);
     };
     document.addEventListener("selectionchange", on);
-    return () => { document.removeEventListener("selectionchange", on); last.current.block?.classList.remove("is-sel"); };
+    addEventListener("scroll", place, { passive: true });
+    return () => { document.removeEventListener("selectionchange", on); removeEventListener("scroll", place); last.current.block?.classList.remove("is-sel"); };
   }, [root]);
+  // after history jumps the DOM is replaced; forget stale selection
+  useEffect(() => { if (last.current.block && !last.current.block.isConnected) { last.current = { block: null, section: null, cell: null }; setPos(null); setInTable(false); } }, [hist]);
 
-  const cmd = (c: string, v?: string) => { document.execCommand(c, false, v); save(); };
-  const insert = (html: string) => {
+  const cmd = (c: string, label: string, v?: string) => { document.execCommand(c, false, v); commit(label); };
+  const main = () => root.current!.querySelector("main")!;
+  const insertNode = (html: string, isSection: boolean) => {
     const { block, section } = last.current;
     const t = document.createElement("template"); t.innerHTML = html;
     const node = t.content.firstElementChild as HTMLElement;
-    if (html === TPL.section) (section ?? root.current!.querySelector("main")!.lastElementChild!).after(node);
+    if (isSection) (section && section.tagName !== "HEADER" ? section : main().querySelector("footer")?.previousElementSibling ?? main().firstElementChild!).after(node);
     else if (block) block.after(node);
-    else (section?.querySelector(".space-y-5") ?? root.current!.querySelector("section .space-y-5"))!.append(node);
+    else {
+      let box = (section?.querySelector(".space-y-5") ?? main().querySelector("section .space-y-5")) as HTMLElement | null;
+      if (!box) { main().querySelector("header")!.insertAdjacentHTML("afterend", BLANK); box = main().querySelector("section .space-y-5"); }
+      box!.append(node);
+    }
     node.scrollIntoView({ behavior: "smooth", block: "center" });
-    if (node.tagName === "IMG") pickImage(node as HTMLImageElement);
-    save();
+    return node;
   };
+  const insert = (k: string) => {
+    const node = insertNode(TPL[k].html, k === "section");
+    if (node.tagName === "IMG") pickImage(node as HTMLImageElement);
+    if (k !== "section") select(node);
+    commit(`إضافة ${TPL[k].name}`);
+  };
+  const need = (what: "block" | "section") => {
+    const el = last.current[what];
+    if (!el || !el.isConnected || el.tagName === "HEADER") { alert("اضغط أولاً داخل العنصر"); return null; }
+    return el;
+  };
+  const kind = (el: HTMLElement) => el.tagName === "SECTION" ? "قسم" : el.querySelector("table") ? "جدول" : el.tagName === "IMG" ? "صورة" : el.tagName === "DETAILS" ? "سؤال" : "عنصر";
   const move = (dir: -1 | 1, what: "block" | "section") => {
-    const el = last.current[what]; if (!el) return alert("اضغط أولاً داخل العنصر اللي تبي تحركه");
+    const el = need(what); if (!el) return;
     const sib = dir < 0 ? el.previousElementSibling : el.nextElementSibling;
     if (!sib || sib.tagName === "HEADER" || sib.tagName === "FOOTER") return;
     dir < 0 ? sib.before(el) : sib.after(el);
-    el.scrollIntoView({ behavior: "smooth", block: "center" }); save();
+    el.scrollIntoView({ behavior: "smooth", block: "center" }); place();
+    commit(`تحريك ${kind(el)} ${dir < 0 ? "لأعلى" : "لأسفل"}`);
+  };
+  const dup = (what: "block" | "section") => {
+    const el = need(what); if (!el) return;
+    const c = el.cloneNode(true) as HTMLElement; c.classList.remove("is-sel"); el.after(c);
+    if (what === "block") select(c);
+    commit(`تكرار ${kind(el)}`);
   };
   const del = (what: "block" | "section") => {
-    const el = last.current[what]; if (!el || el.tagName === "HEADER") return alert("اضغط أولاً داخل العنصر اللي تبي تحذفه");
-    if (confirm(what === "section" ? "حذف القسم كاملاً؟" : "حذف هذا العنصر؟")) { el.remove(); last.current[what] = null; save(); }
+    const el = need(what); if (!el) return;
+    const k = kind(el); el.remove(); last.current[what] = null; if (what === "section") last.current.block = null;
+    setPos(null); commit(`حذف ${k}`);
+  };
+  const copy = (what: "block" | "section") => { const el = need(what); if (!el) return; clip.current = clean(el.outerHTML); alert(`تم نسخ ال${kind(el)} ✓ — اضغط مكان ثاني ثم «لصق»`); };
+  const paste = () => {
+    if (!clip.current) return alert("ما نسخت شي بعد");
+    const isSec = clip.current.startsWith("<section");
+    const node = insertNode(clip.current, isSec); if (!isSec) select(node);
+    commit("لصق");
+  };
+  const clearAll = () => {
+    if (!confirm("مسح كل المحتوى تحت الغلاف؟ (تقدر ترجعه من «السجل»)")) return;
+    commit("قبل مسح الصفحة");
+    main().querySelectorAll(":scope > section").forEach((s) => s.remove());
+    main().querySelector("header")!.insertAdjacentHTML("afterend", BLANK);
+    last.current = { block: null, section: null, cell: null }; setPos(null);
+    commit("مسح كل المحتوى");
+  };
+  const table = (op: "row+" | "row-" | "col+" | "col-") => {
+    const cell = last.current.cell; if (!cell?.isConnected) return alert("اضغط داخل خانة في الجدول");
+    const tr = cell.parentElement as HTMLTableRowElement; const tbl = cell.closest("table")!; const idx = cell.cellIndex;
+    if (op === "row+") { const n = tr.cloneNode(true) as HTMLTableRowElement; n.querySelectorAll("td,th").forEach((c) => (c.innerHTML = "—")); tr.after(n); }
+    if (op === "row-") { if (tbl.rows.length > 1) tr.remove(); }
+    if (op === "col+") Array.from(tbl.rows).forEach((r) => { const c = r.cells[idx]; if (c) { const n = c.cloneNode(false) as HTMLElement; n.innerHTML = "—"; c.after(n); } });
+    if (op === "col-") { if (tr.cells.length > 1) Array.from(tbl.rows).forEach((r) => r.cells[idx]?.remove()); }
+    last.current.cell = null;
+    commit({ "row+": "إضافة صف", "row-": "حذف صف", "col+": "إضافة عمود", "col-": "حذف عمود" }[op]);
   };
   const backup = () => {
     const blob = new Blob([clean(root.current!.innerHTML)], { type: "text/html" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "درس-كبلر.html"; a.click();
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "درس.html"; a.click();
   };
   const restore = () => {
     const i = document.createElement("input"); i.type = "file"; i.accept = ".html";
-    i.onchange = async () => { const f = i.files?.[0]; if (f) { root.current!.innerHTML = await f.text(); save(); } };
+    i.onchange = async () => { const f = i.files?.[0]; if (f) { commit("قبل فتح نسخة"); root.current!.innerHTML = await f.text(); commit("فتح نسخة من ملف"); } };
     i.click();
   };
 
-  const B = ({ t, on }: { t: string; on: () => void }) => (
+  const B = ({ t, on, cls = "" }: { t: string; on: () => void; cls?: string }) => (
     <button onMouseDown={(e) => e.preventDefault()} onClick={on}
-      className="shrink-0 rounded-lg border border-border bg-background px-3 py-2 text-sm font-bold active:bg-primary active:text-primary-foreground">{t}</button>
+      className={`shrink-0 rounded-lg border border-border bg-background px-3 py-2 text-sm font-bold active:bg-primary active:text-primary-foreground ${cls}`}>{t}</button>
   );
-  const tabs = [["text", "النص"], ["add", "إضافة"], ["order", "ترتيب"], ["tools", "أدوات"]] as const;
+  const tabs = [["add", "إضافة"], ["text", "النص"], ["order", "ترتيب"], ["table", "جدول"], ["history", "السجل"], ["tools", "أدوات"]] as const;
+  const fmt = (t: number) => new Date(t).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   return (
-    <div className="fixed inset-x-0 top-0 z-50 border-b border-border bg-card shadow-2xl print:hidden">
-      <div className="flex items-center gap-1 border-b border-border px-2 pt-2">
-        {tabs.map(([k, l]) => (
-          <button key={k} onMouseDown={(e) => e.preventDefault()} onClick={() => setTab(k)}
-            className={`whitespace-nowrap rounded-t-lg px-2.5 py-2 text-sm font-bold ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{l}</button>
-        ))}
-        <button onClick={done} className="mr-auto whitespace-nowrap rounded-lg bg-success px-3 py-2 text-sm font-bold text-success-foreground">✓ حفظ</button>
-      </div>
-      <button onClick={hideKeyboard} aria-label="نزّل الكيبورد"
-        className="fixed left-3 top-1/2 z-50 -translate-y-1/2 rounded-full border-2 border-border bg-primary px-4 py-4 text-lg font-bold text-primary-foreground shadow-2xl print:hidden">⌨️</button>
-      <div className="flex gap-2 overflow-x-auto px-2 py-2">
-        {tab === "text" && <>
-          <B t="عريض" on={() => cmd("bold")} />
-          <B t="تسطير" on={() => cmd("underline")} />
-          <B t="تكبير" on={() => cmd("fontSize", "6")} />
-          <B t="حجم عادي" on={() => cmd("fontSize", "3")} />
-          {["#ffffff", "#7dd3fc", "#facc15", "#f87171", "#86efac"].map((c) => (
-            <button key={c} aria-label="لون" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("foreColor", c)} style={{ background: c }} className="h-9 w-9 shrink-0 rounded-full border-2 border-border" />
+    <>
+      <div className="fixed inset-x-0 top-0 z-50 border-b border-border bg-card shadow-2xl print:hidden">
+        <div className="flex items-center gap-1 overflow-x-auto border-b border-border px-2 pt-2">
+          {tabs.map(([k, l]) => (
+            <button key={k} onMouseDown={(e) => e.preventDefault()} onClick={() => setTab(k)}
+              className={`whitespace-nowrap rounded-t-lg px-2.5 py-2 text-sm font-bold ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{l}</button>
           ))}
-          <B t="مسح التنسيق" on={() => cmd("removeFormat")} />
-        </>}
-        {tab === "add" && <>
-          <B t="فقرة" on={() => insert(TPL.p)} />
-          <B t="مربع مميز" on={() => insert(TPL.box)} />
-          <B t="سؤال وجواب" on={() => insert(TPL.qa)} />
-          <B t="معادلة" on={() => insert(TPL.eq)} />
-          <B t="قائمة" on={() => insert(TPL.list)} />
-          <B t="صورة" on={() => insert(TPL.img)} />
-          <B t="قسم جديد" on={() => insert(TPL.section)} />
-        </>}
-        {tab === "order" && <>
-          <B t="⬆ العنصر" on={() => move(-1, "block")} />
-          <B t="⬇ العنصر" on={() => move(1, "block")} />
-          <B t="🗑 العنصر" on={() => del("block")} />
-          <B t="⬆ القسم" on={() => move(-1, "section")} />
-          <B t="⬇ القسم" on={() => move(1, "section")} />
-          <B t="🗑 القسم" on={() => del("section")} />
-        </>}
-        {tab === "tools" && <>
-          <B t="↶ تراجع" on={() => cmd("undo")} />
-          <B t="↷ إعادة" on={() => cmd("redo")} />
-          <B t="💾 تنزيل نسخة" on={backup} />
-          <B t="📂 فتح نسخة" on={restore} />
-          <B t="🖨 PDF" on={() => window.print()} />
-          <B t="الأصل" on={() => { if (confirm("إرجاع المحتوى الأصلي؟ بتنحذف تعديلاتك")) { localStorage.removeItem(KEY); location.reload(); } }} />
-        </>}
+          <button onMouseDown={(e) => e.preventDefault()} onClick={() => goTo(hist.i - 1)} disabled={hist.i <= 0} aria-label="تراجع" className="mr-auto px-2 text-xl disabled:opacity-30">↶</button>
+          <button onMouseDown={(e) => e.preventDefault()} onClick={() => goTo(hist.i + 1)} disabled={hist.i >= hist.list.length - 1} aria-label="إعادة" className="px-2 text-xl disabled:opacity-30">↷</button>
+          <button onClick={done} className="whitespace-nowrap rounded-lg bg-success px-3 py-2 text-sm font-bold text-success-foreground">✓ حفظ</button>
+        </div>
+        <div className="flex max-h-[45vh] gap-2 overflow-x-auto px-2 py-2">
+          {tab === "add" && Object.keys(TPL).map((k) => <B key={k} t={TPL[k].name} on={() => insert(k)} />)}
+          {tab === "text" && <>
+            <B t="عريض" on={() => cmd("bold", "تنسيق عريض")} />
+            <B t="تسطير" on={() => cmd("underline", "تسطير")} />
+            <B t="تكبير" on={() => cmd("fontSize", "تكبير الخط", "6")} />
+            <B t="حجم عادي" on={() => cmd("fontSize", "حجم عادي", "3")} />
+            {["#ffffff", "#7dd3fc", "#facc15", "#f87171", "#86efac"].map((c) => (
+              <button key={c} aria-label="لون" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("foreColor", "تغيير اللون", c)} style={{ background: c }} className="h-9 w-9 shrink-0 rounded-full border-2 border-border" />
+            ))}
+            <B t="مسح التنسيق" on={() => cmd("removeFormat", "مسح التنسيق")} />
+          </>}
+          {tab === "order" && <>
+            <B t="📄 نسخ العنصر" on={() => copy("block")} />
+            <B t="📌 لصق" on={paste} />
+            <B t="⬆ القسم" on={() => move(-1, "section")} />
+            <B t="⬇ القسم" on={() => move(1, "section")} />
+            <B t="📋 تكرار القسم" on={() => dup("section")} />
+            <B t="📄 نسخ القسم" on={() => copy("section")} />
+            <B t="🗑 القسم" on={() => del("section")} />
+          </>}
+          {tab === "table" && <>
+            <B t="➕ جدول جديد" on={() => insert("table")} />
+            <B t="➕ صف" on={() => table("row+")} />
+            <B t="➖ صف" on={() => table("row-")} />
+            <B t="➕ عمود" on={() => table("col+")} />
+            <B t="➖ عمود" on={() => table("col-")} />
+          </>}
+          {tab === "history" && (
+            <div className="flex w-full flex-col gap-1 overflow-y-auto">
+              {hist.list.map((h, i) => ({ h, i })).reverse().map(({ h, i }) => (
+                <button key={h.time + "-" + i} onMouseDown={(e) => e.preventDefault()} onClick={() => goTo(i)}
+                  className={`flex items-center justify-between rounded-lg border px-3 py-2 text-right text-sm ${i === hist.i ? "border-primary bg-primary text-primary-foreground" : i > hist.i ? "border-border opacity-50" : "border-border bg-background"}`}>
+                  <span className="font-bold">{i === hist.i ? "● " : ""}{h.label}</span>
+                  <span dir="ltr" className="text-xs opacity-80">{fmt(h.time)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {tab === "tools" && <>
+            <B t="📖 الشرح" on={() => { done(); location.href = "/guide"; }} />
+            <B t="💾 تنزيل نسخة" on={backup} />
+            <B t="📂 فتح نسخة" on={restore} />
+            <B t="🖨 PDF" on={() => window.print()} />
+            <B t="🧹 مسح كل المحتوى" on={clearAll} cls="border-destructive text-destructive" />
+            <B t="الأصل" on={() => { if (confirm("إرجاع الدرس الأصلي؟ (يبقى في السجل)")) { commit("قبل إرجاع الأصل"); localStorage.removeItem(KEY); location.reload(); } }} />
+          </>}
+        </div>
       </div>
-    </div>
+      {pos && (
+        <div style={{ top: pos.top, left: pos.left }} className="fixed z-40 flex gap-1 rounded-xl border border-border bg-card p-1 shadow-2xl print:hidden">
+          {([["⬆️", () => move(-1, "block"), "تحريك لأعلى"], ["⬇️", () => move(1, "block"), "تحريك لأسفل"], ["📋", () => dup("block"), "تكرار"], ["📄", () => copy("block"), "نسخ"], ["🗑️", () => del("block"), "حذف"]] as const).map(([t, on, l]) => (
+            <button key={l} aria-label={l} title={l} onMouseDown={(e) => e.preventDefault()} onClick={on} className="rounded-lg px-2 py-1.5 text-lg active:bg-primary">{t}</button>
+          ))}
+          {inTable && <button onMouseDown={(e) => e.preventDefault()} onClick={() => setTab("table")} className="rounded-lg px-2 text-sm font-bold text-primary">جدول</button>}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -232,28 +335,62 @@ function Lesson() {
   const fileRef = useRef<HTMLInputElement>(null);
   const target = useRef<HTMLImageElement | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [hist, setHistState] = useState<Hist>({ list: [], i: -1 });
+  const histRef = useRef(hist);
 
   const saveNow = () => {
-    clearTimeout(timer.current);
     try { if (ref.current) localStorage.setItem(KEY, clean(ref.current.innerHTML)); } catch { alert("المساحة ممتلئة، جرّب صورة أصغر"); }
   };
-  // Wait until typing pauses before saving, so typing stays smooth.
-  const save = () => { clearTimeout(timer.current); timer.current = setTimeout(saveNow, 800); };
+  const setHist = (v: Hist) => {
+    histRef.current = v; setHistState(v);
+    for (let keep = v.list.length; keep > 0; keep = Math.floor(keep / 2)) {
+      try { const s = v.list.length - keep; localStorage.setItem(HKEY, JSON.stringify({ list: v.list.slice(s), i: v.i - s })); return; } catch { /* too big, keep fewer */ }
+    }
+  };
+  const commit = (label: string) => {
+    clearTimeout(timer.current);
+    if (!ref.current) return;
+    const html = clean(ref.current.innerHTML);
+    const h = histRef.current;
+    if (h.list[h.i]?.html === html) return;
+    const list = [...h.list.slice(0, h.i + 1), { label, time: Date.now(), html }].slice(-60);
+    setHist({ list, i: list.length - 1 });
+    saveNow();
+  };
+  const flush = () => { if (timer.current) { clearTimeout(timer.current); timer.current = undefined; commit("تعديل نص"); } };
+  const goTo = (i: number) => {
+    flush();
+    const h = histRef.current; const e = h.list[i]; if (!e || !ref.current) return;
+    ref.current.innerHTML = e.html; setHist({ ...h, i }); saveNow();
+  };
 
   useEffect(() => {
     const el = ref.current!;
     const saved = localStorage.getItem(KEY);
     if (saved) el.innerHTML = saved;
+    let h: Hist | null = null;
+    try { h = JSON.parse(localStorage.getItem(HKEY) || "null"); } catch { /* ignore */ }
+    if (h?.list?.length) { histRef.current = h; setHistState(h); }
+    else { const v = { list: [{ label: "الحالة الأولى", time: Date.now(), html: clean(el.innerHTML) }], i: 0 }; histRef.current = v; setHistState(v); }
     const onClick = (e: MouseEvent) => {
       if (!editRef.current) return;
       const t = e.target as HTMLElement;
       if (t.tagName === "IMG") { e.preventDefault(); target.current = t as HTMLImageElement; fileRef.current?.click(); }
       if (t.closest("summary")) e.preventDefault();
     };
+    const onInput = () => { clearTimeout(timer.current); timer.current = setTimeout(() => { timer.current = undefined; commit("تعديل نص"); }, 1000); };
+    const onKey = (e: KeyboardEvent) => {
+      if (!editRef.current || !(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); flush(); goTo(histRef.current.i - 1); }
+      else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); goTo(histRef.current.i + 1); }
+    };
+    const onUnload = () => { flush(); saveNow(); };
     el.addEventListener("click", onClick);
-    el.addEventListener("input", save);
-    addEventListener("beforeunload", saveNow);
-    return () => { el.removeEventListener("click", onClick); el.removeEventListener("input", save); removeEventListener("beforeunload", saveNow); };
+    el.addEventListener("input", onInput);
+    addEventListener("keydown", onKey);
+    addEventListener("beforeunload", onUnload);
+    return () => { el.removeEventListener("click", onClick); el.removeEventListener("input", onInput); removeEventListener("keydown", onKey); removeEventListener("beforeunload", onUnload); };
   }, []);
 
   const toggle = () => {
@@ -262,7 +399,7 @@ function Lesson() {
     setEditing(next);
     ref.current!.contentEditable = next ? "true" : "false";
     ref.current!.classList.toggle("editing", next);
-    if (!next) saveNow();
+    if (!next) { flush(); saveNow(); }
   };
 
   return (
@@ -273,12 +410,12 @@ function Lesson() {
           ✏️ تعديل
         </button>
       )}
-      {editing && <Toolbar root={ref} save={save} done={toggle} pickImage={(img) => { target.current = img; fileRef.current?.click(); }} />}
+      {editing && <Toolbar root={ref} commit={commit} hist={hist} goTo={goTo} done={toggle} pickImage={(img) => { target.current = img; fileRef.current?.click(); }} />}
       <input
         ref={fileRef} type="file" accept="image/*" hidden
         onChange={async (e) => {
           const f = e.target.files?.[0];
-          if (f && target.current) { target.current.src = await shrink(f); target.current.removeAttribute("srcset"); saveNow(); }
+          if (f && target.current) { target.current.src = await shrink(f); target.current.removeAttribute("srcset"); commit("تغيير صورة"); }
           e.target.value = "";
         }}
       />
