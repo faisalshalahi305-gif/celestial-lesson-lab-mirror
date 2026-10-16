@@ -1,24 +1,402 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { memo, useEffect, useRef, useState, type ReactNode } from "react";
+import cover from "@/assets/space-cover.jpg";
+import orbits from "@/assets/orbits.jpg";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "قوانين كبلر وقانون الجذب العام | فيصل المطيري" },
+      { name: "description", content: "درس فيزياء ثاني ثانوي: قوانين كبلر الثلاثة وقانون الجذب العام مع أسئلة وحل المسائل." },
+      { property: "og:title", content: "قوانين كبلر وقانون الجذب العام" },
+      { property: "og:description", content: "درس تفاعلي لعرضه على البروجكتور: صور، أسئلة عميقة، ومعادلات." },
+      { property: "og:type", content: "article" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: Lesson,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+function Section({ n, title, children }: { n: string; title: string; children: ReactNode }) {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <section className="mx-auto my-8 max-w-5xl rounded-3xl border border-border bg-card/60 px-6 py-12 md:px-10">
+      <h2 className="mb-6 flex items-center gap-3 text-3xl font-extrabold text-primary">
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-xl text-primary-foreground">{n}</span>
+        {title}
+      </h2>
+      <div className="space-y-5 leading-loose">{children}</div>
+    </section>
+  );
+}
+
+function QA({ q, a }: { q: string; a: ReactNode }) {
+  return (
+    <details className="qa group rounded-xl border border-border bg-card/80 p-5 shadow-sm">
+      <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4">
+        <p className="flex-1 font-bold">{q}</p>
+        <span className="shrink-0 rounded-lg bg-primary px-5 py-2 font-bold text-primary-foreground">
+          <span className="group-open:hidden">الإجابة</span>
+          <span className="hidden group-open:inline">إخفاء</span>
+        </span>
+      </summary>
+      <div className="mt-4 rounded-lg bg-success p-4 text-success-foreground">{a}</div>
+    </details>
+  );
+}
+
+function Eq({ children }: { children: ReactNode }) {
+  return (
+    <div dir="ltr" className="my-4 rounded-xl border-2 border-primary bg-accent py-6 text-center font-mono text-3xl font-bold text-accent-foreground">
+      {children}
     </div>
   );
 }
+
+const KEY = "lesson-html-v1";
+
+const TPL = {
+  section: `<section class="mx-auto my-8 max-w-5xl rounded-3xl border border-border bg-card/60 px-6 py-12 md:px-10"><h2 class="mb-6 flex items-center gap-3 text-3xl font-extrabold text-primary"><span class="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-xl text-primary-foreground">★</span>عنوان القسم الجديد</h2><div class="space-y-5 leading-loose"><p>اكتب هنا…</p></div></section>`,
+  p: `<p>فقرة جديدة… اكتب هنا.</p>`,
+  box: `<div class="rounded-xl border-2 border-primary bg-accent p-6 text-accent-foreground"><p class="mb-2 text-2xl font-extrabold">عنوان مميز</p><p>معلومة مهمة هنا.</p></div>`,
+  qa: `<details class="qa group rounded-xl border border-border bg-card/80 p-5 shadow-sm"><summary class="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4"><p class="flex-1 font-bold">اكتب السؤال هنا؟</p><span class="shrink-0 rounded-lg bg-primary px-5 py-2 font-bold text-primary-foreground"><span class="group-open:hidden">الإجابة</span><span class="hidden group-open:inline">إخفاء</span></span></summary><div class="mt-4 rounded-lg bg-success p-4 text-success-foreground">اكتب الإجابة هنا.</div></details>`,
+  eq: `<div dir="ltr" class="my-4 rounded-xl border-2 border-primary bg-accent py-6 text-center font-mono text-3xl font-bold text-accent-foreground">F = m · a</div>`,
+  list: `<ul class="list-disc space-y-2 pr-6"><li>نقطة أولى</li><li>نقطة ثانية</li></ul>`,
+  img: `<img src="${orbits}" alt="صورة" class="w-full rounded-2xl shadow-lg" />`,
+};
+function Toolbar({ root, save, pickImage, done }: { root: React.RefObject<HTMLDivElement | null>; save: () => void; pickImage: (i: HTMLImageElement) => void; done: () => void }) {
+  const last = useRef<{ block: HTMLElement | null; section: HTMLElement | null }>({ block: null, section: null });
+  const [tab, setTab] = useState<"text" | "add" | "order" | "tools">("text");
+  const hideKeyboard = () => { (document.activeElement as HTMLElement | null)?.blur(); getSelection()?.removeAllRanges(); };
+  useEffect(() => {
+    const on = () => {
+      const n = getSelection()?.anchorNode;
+      const el = (n?.nodeType === 1 ? n : n?.parentElement) as HTMLElement | null;
+      if (!el || !root.current?.contains(el)) return;
+      last.current.section = el.closest("section, header");
+      let b: HTMLElement | null = el;
+      while (b && b.parentElement && !b.parentElement.classList.contains("space-y-5") && b.tagName !== "SECTION") b = b.parentElement;
+      const nb = b && b.tagName !== "SECTION" && b.tagName !== "HEADER" ? b : null;
+      if (nb !== last.current.block) {
+        last.current.block?.classList.remove("is-sel");
+        nb?.classList.add("is-sel");
+        last.current.block = nb;
+      }
+    };
+    document.addEventListener("selectionchange", on);
+    return () => { document.removeEventListener("selectionchange", on); last.current.block?.classList.remove("is-sel"); };
+  }, [root]);
+
+  const cmd = (c: string, v?: string) => { document.execCommand(c, false, v); save(); };
+  const insert = (html: string) => {
+    const { block, section } = last.current;
+    const t = document.createElement("template"); t.innerHTML = html;
+    const node = t.content.firstElementChild as HTMLElement;
+    if (html === TPL.section) (section ?? root.current!.querySelector("main")!.lastElementChild!).after(node);
+    else if (block) block.after(node);
+    else (section?.querySelector(".space-y-5") ?? root.current!.querySelector("section .space-y-5"))!.append(node);
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (node.tagName === "IMG") pickImage(node as HTMLImageElement);
+    save();
+  };
+  const move = (dir: -1 | 1, what: "block" | "section") => {
+    const el = last.current[what]; if (!el) return alert("اضغط أولاً داخل العنصر اللي تبي تحركه");
+    const sib = dir < 0 ? el.previousElementSibling : el.nextElementSibling;
+    if (!sib || sib.tagName === "HEADER" || sib.tagName === "FOOTER") return;
+    dir < 0 ? sib.before(el) : sib.after(el);
+    el.scrollIntoView({ behavior: "smooth", block: "center" }); save();
+  };
+  const del = (what: "block" | "section") => {
+    const el = last.current[what]; if (!el || el.tagName === "HEADER") return alert("اضغط أولاً داخل العنصر اللي تبي تحذفه");
+    if (confirm(what === "section" ? "حذف القسم كاملاً؟" : "حذف هذا العنصر؟")) { el.remove(); last.current[what] = null; save(); }
+  };
+  const backup = () => {
+    const blob = new Blob([clean(root.current!.innerHTML)], { type: "text/html" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "درس-كبلر.html"; a.click();
+  };
+  const restore = () => {
+    const i = document.createElement("input"); i.type = "file"; i.accept = ".html";
+    i.onchange = async () => { const f = i.files?.[0]; if (f) { root.current!.innerHTML = await f.text(); save(); } };
+    i.click();
+  };
+
+  const B = ({ t, on }: { t: string; on: () => void }) => (
+    <button onMouseDown={(e) => e.preventDefault()} onClick={on}
+      className="shrink-0 rounded-lg border border-border bg-background px-3 py-2 text-sm font-bold active:bg-primary active:text-primary-foreground">{t}</button>
+  );
+  const tabs = [["text", "النص"], ["add", "إضافة"], ["order", "ترتيب"], ["tools", "أدوات"]] as const;
+
+  return (
+    <div className="fixed inset-x-0 top-0 z-50 border-b border-border bg-card shadow-2xl print:hidden">
+      <div className="flex items-center gap-1 border-b border-border px-2 pt-2">
+        {tabs.map(([k, l]) => (
+          <button key={k} onMouseDown={(e) => e.preventDefault()} onClick={() => setTab(k)}
+            className={`whitespace-nowrap rounded-t-lg px-2.5 py-2 text-sm font-bold ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{l}</button>
+        ))}
+        <button onClick={done} className="mr-auto whitespace-nowrap rounded-lg bg-success px-3 py-2 text-sm font-bold text-success-foreground">✓ حفظ</button>
+      </div>
+      <button onClick={hideKeyboard} aria-label="نزّل الكيبورد"
+        className="fixed left-3 top-1/2 z-50 -translate-y-1/2 rounded-full border-2 border-border bg-primary px-4 py-4 text-lg font-bold text-primary-foreground shadow-2xl print:hidden">⌨️</button>
+      <div className="flex gap-2 overflow-x-auto px-2 py-2">
+        {tab === "text" && <>
+          <B t="عريض" on={() => cmd("bold")} />
+          <B t="تسطير" on={() => cmd("underline")} />
+          <B t="تكبير" on={() => cmd("fontSize", "6")} />
+          <B t="حجم عادي" on={() => cmd("fontSize", "3")} />
+          {["#ffffff", "#7dd3fc", "#facc15", "#f87171", "#86efac"].map((c) => (
+            <button key={c} aria-label="لون" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("foreColor", c)} style={{ background: c }} className="h-9 w-9 shrink-0 rounded-full border-2 border-border" />
+          ))}
+          <B t="مسح التنسيق" on={() => cmd("removeFormat")} />
+        </>}
+        {tab === "add" && <>
+          <B t="فقرة" on={() => insert(TPL.p)} />
+          <B t="مربع مميز" on={() => insert(TPL.box)} />
+          <B t="سؤال وجواب" on={() => insert(TPL.qa)} />
+          <B t="معادلة" on={() => insert(TPL.eq)} />
+          <B t="قائمة" on={() => insert(TPL.list)} />
+          <B t="صورة" on={() => insert(TPL.img)} />
+          <B t="قسم جديد" on={() => insert(TPL.section)} />
+        </>}
+        {tab === "order" && <>
+          <B t="⬆ العنصر" on={() => move(-1, "block")} />
+          <B t="⬇ العنصر" on={() => move(1, "block")} />
+          <B t="🗑 العنصر" on={() => del("block")} />
+          <B t="⬆ القسم" on={() => move(-1, "section")} />
+          <B t="⬇ القسم" on={() => move(1, "section")} />
+          <B t="🗑 القسم" on={() => del("section")} />
+        </>}
+        {tab === "tools" && <>
+          <B t="↶ تراجع" on={() => cmd("undo")} />
+          <B t="↷ إعادة" on={() => cmd("redo")} />
+          <B t="💾 تنزيل نسخة" on={backup} />
+          <B t="📂 فتح نسخة" on={restore} />
+          <B t="🖨 PDF" on={() => window.print()} />
+          <B t="الأصل" on={() => { if (confirm("إرجاع المحتوى الأصلي؟ بتنحذف تعديلاتك")) { localStorage.removeItem(KEY); location.reload(); } }} />
+        </>}
+      </div>
+    </div>
+  );
+}
+
+const clean = (h: string) => h.replace(/\s?is-sel/g, "");
+
+function Stars() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current!;
+    const ctx = c.getContext("2d")!;
+    let raf = 0, t0 = 0;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const size = () => { c.width = innerWidth; c.height = innerHeight; };
+    size();
+    addEventListener("resize", size);
+    const stars = Array.from({ length: innerWidth < 700 ? 60 : 110 }, () => ({
+      x: Math.random(), y: Math.random(), r: Math.random() * 1.2 + 0.3,
+      p: Math.random() * Math.PI * 2, s: Math.random() * 0.04 + 0.01, v: Math.random() * 0.0001 + 0.00004,
+    }));
+    ctx.fillStyle = "#cfe3ff";
+    const draw = (t: number) => {
+      raf = requestAnimationFrame(draw);
+      if (document.hidden || t - t0 < 66) return; // ~15fps is enough for twinkling
+      t0 = t;
+      ctx.clearRect(0, 0, c.width, c.height);
+      for (const st of stars) {
+        st.p += st.s; st.y -= st.v; if (st.y < 0) st.y = 1;
+        ctx.globalAlpha = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(st.p));
+        ctx.beginPath(); ctx.arc(st.x * c.width, st.y * c.height, st.r, 0, 7); ctx.fill();
+      }
+    };
+    if (reduce) draw(1000); else raf = requestAnimationFrame(draw);
+    return () => { cancelAnimationFrame(raf); removeEventListener("resize", size); };
+  }, []);
+  return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 -z-10" />;
+}
+
+function shrink(file: File): Promise<string> {
+  return new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1200 / img.width);
+      const cv = document.createElement("canvas");
+      cv.width = img.width * k; cv.height = img.height * k;
+      cv.getContext("2d")!.drawImage(img, 0, 0, cv.width, cv.height);
+      res(cv.toDataURL("image/jpeg", 0.75));
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function Lesson() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [editing, setEditing] = useState(false);
+  const editRef = useRef(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const target = useRef<HTMLImageElement | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const saveNow = () => {
+    clearTimeout(timer.current);
+    try { if (ref.current) localStorage.setItem(KEY, clean(ref.current.innerHTML)); } catch { alert("المساحة ممتلئة، جرّب صورة أصغر"); }
+  };
+  // Wait until typing pauses before saving, so typing stays smooth.
+  const save = () => { clearTimeout(timer.current); timer.current = setTimeout(saveNow, 800); };
+
+  useEffect(() => {
+    const el = ref.current!;
+    const saved = localStorage.getItem(KEY);
+    if (saved) el.innerHTML = saved;
+    const onClick = (e: MouseEvent) => {
+      if (!editRef.current) return;
+      const t = e.target as HTMLElement;
+      if (t.tagName === "IMG") { e.preventDefault(); target.current = t as HTMLImageElement; fileRef.current?.click(); }
+      if (t.closest("summary")) e.preventDefault();
+    };
+    el.addEventListener("click", onClick);
+    el.addEventListener("input", save);
+    addEventListener("beforeunload", saveNow);
+    return () => { el.removeEventListener("click", onClick); el.removeEventListener("input", save); removeEventListener("beforeunload", saveNow); };
+  }, []);
+
+  const toggle = () => {
+    const next = !editing;
+    editRef.current = next;
+    setEditing(next);
+    ref.current!.contentEditable = next ? "true" : "false";
+    ref.current!.classList.toggle("editing", next);
+    if (!next) saveNow();
+  };
+
+  return (
+    <>
+      <Stars />
+      {!editing && (
+        <button onClick={toggle} className="fixed bottom-4 left-4 z-50 rounded-full bg-primary px-5 py-3 font-bold text-primary-foreground shadow-lg print:hidden">
+          ✏️ تعديل
+        </button>
+      )}
+      {editing && <Toolbar root={ref} save={save} done={toggle} pickImage={(img) => { target.current = img; fileRef.current?.click(); }} />}
+      <input
+        ref={fileRef} type="file" accept="image/*" hidden
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (f && target.current) { target.current.src = await shrink(f); target.current.removeAttribute("srcset"); saveNow(); }
+          e.target.value = "";
+        }}
+      />
+      <div ref={ref} suppressContentEditableWarning className={editing ? "pt-28" : ""}>
+        <Content />
+      </div>
+    </>
+  );
+}
+
+const Content = memo(function Content() {
+  return (
+    <main className="min-h-screen text-foreground">
+      <header className="relative isolate overflow-hidden py-20 text-center text-foreground">
+        <img src={cover} width={1920} height={832} alt="المجموعة الشمسية" className="absolute inset-0 -z-10 h-full w-full object-cover" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-background/40 via-background/50 to-background" />
+        <p className="text-lg text-primary">فيزياء ٢ — الصف الثاني الثانوي — الفصل الدراسي الأول — الوحدة الأولى</p>
+        <h1 className="mt-3 text-4xl font-extrabold md:text-6xl">الجاذبية وحركة الكواكب: قوانين كبلر</h1>
+        <div className="mt-6 flex flex-wrap justify-center gap-4 text-lg">
+          <span className="rounded-full border border-border bg-card/70 px-4 py-1">الاسم: <b>فيصل المطيري</b></span>
+          <span className="rounded-full border border-border bg-card/70 px-4 py-1">التاريخ: <b>الجمعة ١٦ أكتوبر ٢٠٢٦م</b></span>
+        </div>
+      </header>
+
+      <Section n="١" title="تخيل لو أن الأرض تسقط طوال الوقت!">
+        <p className="text-2xl font-extrabold leading-loose text-primary">تخيل لو قلت لك إن الأرض طول الوقت تسقط!</p>
+        <p>إحنا نعرف إن أي شيء نتركه من يدنا يطيح للأرض. طيب ليه الأرض ما تطيح في الشمس وهي تجذبها طول الوقت؟</p>
+        <div className="rounded-xl border-2 border-primary bg-accent p-6 text-accent-foreground">
+          <p className="mb-3 text-2xl font-extrabold">السر هو سرعة الأرض!</p>
+          <p>
+            الأرض تتحرك حول الشمس بسرعة تقارب{" "}
+            <span dir="ltr" className="mx-1 inline-block rounded-lg bg-primary px-3 py-1 font-mono text-primary-foreground">107,000 km/h</span>{" "}
+            أي نحو ١٠٧ آلاف كيلومتر في الساعة.
+          </p>
+        </div>
+        <p>جاذبية الشمس تسحب الأرض باتجاهها وتغيّر اتجاه حركتها باستمرار، لكن سرعة الأرض تخليها تستمر في الدوران حول الشمس بدل ما تتجه لها مباشرة.</p>
+        <p className="rounded-xl border border-border bg-card p-5 text-xl font-bold">
+          يعني الأرض لا هي ثابتة ولا هي تهرب من الشمس، بل تتحرك والجاذبية تغيّر مسارها باستمرار.
+        </p>
+        <QA
+          q="سؤال للفصل: إذا الشمس تجذب الأرض طول الوقت، ليه الأرض ما تصطدم فيها؟"
+          a={
+            <span>
+              لأن للأرض سرعة أفقية كبيرة جدًا. هي «تسقط» فعلًا نحو الشمس، لكن أثناء سقوطها تمرّ بجانبها، فتبقى تدور في مدار بدل ما تقترب منها.
+              لو توقفت سرعة الأرض لسقطت في الشمس، ولو زادت كثيرًا لانطلقت بعيدًا في الفضاء.
+            </span>
+          }
+        />
+        <div className="rounded-xl bg-accent p-5 text-accent-foreground">
+          <p className="mb-2 font-bold">الأهداف:</p>
+          <ul className="list-disc space-y-1 pr-6">
+            <li>أن أذكر قوانين كبلر الثلاثة.</li>
+            <li>أن أفسّر حركة الكواكب باستخدام قانون الجذب العام.</li>
+            <li>أن أحل مسائل على قانون كبلر الثالث.</li>
+          </ul>
+        </div>
+      </Section>
+
+      <Section n="٢" title="لنتأمل الصورة">
+        <img src={orbits} width={1600} height={912} alt="الشمس والكواكب في مدارات إهليلجية" className="w-full rounded-2xl shadow-lg" />
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border border-border bg-background/60 p-5"><b className="text-primary">الشمس ☀️</b><p>تقع في إحدى بؤرتي المدار وليس في مركزه.</p></div>
+          <div className="rounded-xl border border-border bg-background/60 p-5"><b className="text-primary">المدار الإهليلجي</b><p>مسار الكوكب شكله بيضاوي (قطع ناقص) وليس دائرة تامة.</p></div>
+          <div className="rounded-xl border border-border bg-background/60 p-5"><b className="text-primary">الكواكب</b><p>كلما ابتعد الكوكب عن الشمس زاد زمن دورته حولها.</p></div>
+        </div>
+        <h3 className="pt-4 text-2xl font-bold">قوانين كبلر الثلاثة</h3>
+        <ol className="list-decimal space-y-3 pr-6">
+          <li><b>القانون الأول:</b> تتحرك الكواكب في مدارات إهليلجية، وتقع الشمس في إحدى البؤرتين.</li>
+          <li><b>القانون الثاني:</b> الخط الواصل بين الشمس والكوكب يمسح مساحات متساوية في أزمنة متساوية (الكوكب أسرع عندما يقترب من الشمس).</li>
+          <li><b>القانون الثالث:</b> مربع النسبة بين زمني دورتي كوكبين يساوي مكعب النسبة بين متوسطي بُعديهما عن الشمس.</li>
+        </ol>
+      </Section>
+
+      <Section n="٣" title="أسئلة على الدرس">
+        <QA q="ما شكل مدار الكوكب حول الشمس؟" a="إهليلجي (قطع ناقص)، والشمس في إحدى بؤرتيه." />
+        <QA q="متى تكون سرعة الأرض في مدارها أكبر ما يمكن؟" a="عندما تكون أقرب ما يمكن إلى الشمس (الحضيض)، حسب قانون كبلر الثاني." />
+        <QA q="أيهما زمن دورته أطول: المريخ أم الأرض؟ ولماذا؟" a="المريخ، لأنه أبعد عن الشمس، وحسب القانون الثالث يزداد الزمن الدوري بزيادة البعد." />
+      </Section>
+
+      <Section n="٤" title="أسئلة عميقة 🤔 فكّر قبل أن تضغط!">
+        <QA q="لو اختفت الشمس فجأة، هل ستشعر الأرض بذلك فوراً؟" a="لا! الجاذبية تنتقل بسرعة الضوء، فستستمر الأرض في مدارها نحو ٨ دقائق و٢٠ ثانية قبل أن تنطلق في خط مستقيم — وهو نفس الوقت الذي سنظل نرى فيه ضوء الشمس." />
+        <QA q="القمر ينجذب نحو الأرض باستمرار… فلماذا لا يسقط عليها؟" a="القمر في الحقيقة «يسقط» دائماً! لكن سرعته الأفقية كبيرة جداً، فكلما سقط نحو الأرض تنحني الأرض تحته، فيبقى يدور حولها. هذا هو معنى المدار." />
+        <QA q="رائد الفضاء في المحطة الدولية يطفو، فهل الجاذبية هناك صفر؟" a="لا، الجاذبية هناك نحو ٩٠٪ من قيمتها على سطح الأرض! يطفو لأنه والمحطة يسقطان معاً سقوطاً حراً حول الأرض (انعدام الوزن الظاهري)." />
+        <QA q="هل قوانين كبلر تنطبق على الأقمار الاصطناعية حول الأرض؟" a="نعم، تنطبق على أي جسم يدور حول جسم مركزي، لكن نقارن فقط بين أجسام تدور حول الجسم المركزي نفسه (الأرض هنا)." />
+        <QA q="لماذا يكون الصيف في السعودية بينما الأرض أبعد عن الشمس (في يوليو)؟" a="لأن الفصول سببها ميل محور الأرض (٢٣.٥°) وليس المسافة. في يوليو يميل نصف الكرة الشمالي نحو الشمس فتسقط الأشعة عمودية أكثر." />
+      </Section>
+
+      <Section n="٥" title="معلومات إضافية 💡">
+        <ul className="list-disc space-y-2 pr-6">
+          <li>استنتج كبلر قوانينه من أرصاد دقيقة جمعها أستاذه <b>تيخو براهي</b> على مدى ٢٠ سنة.</li>
+          <li>نيوتن فسّر قوانين كبلر بقانون الجذب العام:</li>
+        </ul>
+        <Eq>F = G · m₁ m₂ / r²</Eq>
+        <p><b>F</b>: قوة الجذب (N) — <b>G</b> = 6.67 × 10⁻¹¹ N·m²/kg² ثابت الجذب العام — <b>m₁ , m₂</b>: الكتلتان (kg) — <b>r</b>: المسافة بين مركزيهما (m).</p>
+        <p>القوة تقل بمربع المسافة: إذا تضاعفت المسافة مرتين تقل القوة إلى الربع.</p>
+      </Section>
+
+      <Section n="٦" title="قانون كبلر الثالث">
+        <Eq>( T<sub>A</sub> / T<sub>B</sub> )² = ( r<sub>A</sub> / r<sub>B</sub> )³</Eq>
+        <p><b>T</b>: الزمن الدوري (زمن دورة كاملة) — <b>r</b>: متوسط بعد الكوكب عن الشمس. يجب أن تكون الوحدات متماثلة للكوكبين.</p>
+        <div className="rounded-xl border border-border bg-card p-6">
+          <h3 className="mb-3 text-2xl font-bold text-primary">مثال محلول</h3>
+          <p>متوسط بعد المريخ عن الشمس يساوي <b>1.52</b> مرة بعد الأرض. احسب الزمن الدوري للمريخ بالسنوات.</p>
+          <ol className="mt-4 list-decimal space-y-3 pr-6">
+            <li><b>المعطيات:</b> T<sub>B</sub> (الأرض) = 1 سنة، r<sub>A</sub>/r<sub>B</sub> = 1.52</li>
+            <li><b>نعوّض في القانون:</b> <span dir="ltr" className="font-mono">(T<sub>A</sub>/1)² = (1.52)³</span></li>
+            <li><b>نحسب المكعب:</b> <span dir="ltr" className="font-mono">1.52 × 1.52 × 1.52 = 3.51</span></li>
+            <li><b>نأخذ الجذر التربيعي:</b> <span dir="ltr" className="font-mono">T<sub>A</sub> = √3.51 ≈ 1.87</span></li>
+            <li><b>الجواب:</b> الزمن الدوري للمريخ ≈ <b>1.87 سنة</b> ✅</li>
+          </ol>
+        </div>
+        <div className="rounded-xl bg-accent p-5 text-accent-foreground">
+          <b>خطوات الحل دائماً:</b> ١) اكتب المعطيات ٢) اكتب القانون ٣) عوّض ٤) احسب الأس ٥) خذ الجذر المناسب ٦) اكتب الوحدة.
+        </div>
+        <QA q="تدريب: كوكب متوسط بعده عن الشمس 4 أضعاف بعد الأرض، كم زمنه الدوري؟" a={<span>(T)² = 4³ = 64 ← T = √64 = <b>8 سنوات</b></span>} />
+      </Section>
+
+      <footer className="py-8 text-center text-muted-foreground">إعداد الطالب: فيصل المطيري — فيزياء ٢</footer>
+    </main>
+  );
+});
