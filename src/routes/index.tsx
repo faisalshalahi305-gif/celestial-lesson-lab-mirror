@@ -210,13 +210,15 @@ function Toolbar({ root, commit, hist, goTo, pickImage, done }: {
   return (
     <>
       <div className="fixed inset-x-0 top-0 z-50 border-b border-border bg-card shadow-2xl print:hidden">
-        <div className="flex items-center gap-1 overflow-x-auto border-b border-border px-2 pt-2">
+        <div className="flex items-center gap-1 border-b border-border px-2 pt-2">
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
           {tabs.map(([k, l]) => (
             <button key={k} onMouseDown={(e) => e.preventDefault()} onClick={() => setTab(k)}
               className={`whitespace-nowrap rounded-t-lg px-2.5 py-2 text-sm font-bold ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{l}</button>
           ))}
-          <button onMouseDown={(e) => e.preventDefault()} onClick={() => goTo(hist.i - 1)} disabled={hist.i <= 0} aria-label="تراجع" className="mr-auto px-2 text-xl disabled:opacity-30">↶</button>
-          <button onMouseDown={(e) => e.preventDefault()} onClick={() => goTo(hist.i + 1)} disabled={hist.i >= hist.list.length - 1} aria-label="إعادة" className="px-2 text-xl disabled:opacity-30">↷</button>
+          </div>
+          <button onMouseDown={(e) => e.preventDefault()} onClick={() => goTo(hist.i - 1)} disabled={hist.i <= 0} aria-label="تراجع" className="px-1 text-xl disabled:opacity-30">↶</button>
+          <button onMouseDown={(e) => e.preventDefault()} onClick={() => goTo(hist.i + 1)} disabled={hist.i >= hist.list.length - 1} aria-label="إعادة" className="px-1 text-xl disabled:opacity-30">↷</button>
           <button onClick={done} className="whitespace-nowrap rounded-lg bg-success px-3 py-2 text-sm font-bold text-success-foreground">✓ حفظ</button>
         </div>
         <div className="flex max-h-[45vh] gap-2 overflow-x-auto px-2 py-2">
